@@ -1,0 +1,24 @@
+name = "AoC2025"
+version = "0.1.0"
+keywords = ["math"]
+defaultTargets = ["AoC2025"]
+
+[leanOptions]
+pp.unicode.fun = true # pretty-prints `fun a ↦ b`
+relaxedAutoImplicit = false
+weak.linter.mathlibStandardSet = true
+linter.flexible = false
+linter.style.commandStart = false
+maxSynthPendingDepth = 3
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+
+[[require]]
+name = "std"
+git = "https://github.com/leanprover/std4"
+rev = "main"
+
+[[lean_lib]]
+name = "AoC2025"
