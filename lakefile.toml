@@ -1,14 +1,14 @@
 name = "AoC2025"
 version = "0.1.0"
-keywords = ["math"]
-defaultTargets = ["AoC2025"]
+keywords = ["lea(r)n"]
+defaultTargets = ["aoc"]
 
 [leanOptions]
 pp.unicode.fun = true # pretty-prints `fun a ↦ b`
 relaxedAutoImplicit = false
 weak.linter.mathlibStandardSet = true
-linter.flexible = false
-linter.style.commandStart = false
+# linter.flexible = false
+# linter.style.commandStart = false
 maxSynthPendingDepth = 3
 
 [[require]]
@@ -22,3 +22,7 @@ rev = "main"
 
 [[lean_lib]]
 name = "AoC2025"
+
+[[lean_exe]]
+name = "aoc"
+root = "AoC2025"
