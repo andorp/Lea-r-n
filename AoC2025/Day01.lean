@@ -176,7 +176,7 @@ def parseInput (s : String) : Except String (List Rotation) := do
   let nonempty := lines.filter (fun l => !l.trim.isEmpty)
   nonempty.mapM parseRotation
 
-def day01main : IO Unit := do
+def day01main1 : IO Unit := do
   let stdin ← IO.getStdin
   let input ← stdin.readToEnd
   match parseInput input with
@@ -301,19 +301,7 @@ def passwordSpec2 (pos : Pos) (rs : List Rotation) : Nat :=
 
 #eval passwordSpec2 50 exampleRotations
 
-theorem example_password2 :
-  passwordSpec2 50 exampleRotations = 6
-:= by
-  -- mathlib can brute-force this finite computation:
-  -- decide
-  sorry
-
 #eval (clicksSpec 50 ⟨Dir.R, 1000⟩).count 0
-
-example :
-  (clicksSpec 50 ⟨Dir.R, 1000⟩).count 0 = 10
-:= by
-  sorry
 
 /-
 TODO
@@ -345,6 +333,40 @@ def zerosInRot (pos : Pos) (r : Rotation) : Nat :=
       if n < first
         then 0
         else 1 + (n - first) / 100
+
+def zerosInRotRec : Pos -> Rotation -> Nat
+  | pos, ⟨d, 0⟩   => 0
+  | pos, ⟨d, n+1⟩ =>
+      let pos₁ := step1 pos d
+      (if pos₁ = 0 then 1 else 0) + zerosInRotRec pos₁ ⟨d, n⟩
+
+theorem zeroesInRotRec_spec
+  (pos : Pos)
+  (r : Rotation) :
+  ----------------
+  zerosInRotRec pos r = (clicksSpec pos r).count 0
+:= by
+  cases r with
+  | mk d n =>
+    induction n generalizing pos with
+    | zero =>
+      simp [zerosInRotRec, clicksSpec]
+    | succ n ih =>
+      simp
+        [ zerosInRotRec
+        , clicksSpec
+        , List.count_cons
+        , ih
+        , Nat.add_comm
+        ]
+
+theorem zerosInRot_eq_rec
+  (pos : Pos)
+  (r : Rotation) :
+  ----------------
+  zerosInRot pos r = zerosInRotRec pos r
+:= by
+  sorry
 
 #eval zerosInRot 50 ⟨Dir.R, 1000⟩
 
@@ -378,8 +400,27 @@ theorem loop2_correct
     simp [solve2, runSpec2]
   | cons r rs ih =>
     simp [solve2,runSpec2,List.count_append] at ih ⊢
-    -- have hzeros : zerosInRot pos r = (clicksSpec pos r).count 0 := zerosInRot_spec pos r
-    -- simp [zerosInRot,hzeros] at ih ⊢
+    have hzeros : zerosInRot pos r = (clicksSpec pos r).count 0
+          := zerosInRot_spec pos r
+    simp [hzeros]
     have h := ih (stepSpec pos r) (cnt + (clicksSpec pos r).count 0)
-    simpa [Nat.add_assoc,Nat.add_comm,NAt.add_left_comm] using h
-    sorry
+    simpa [Nat.add_assoc,Nat.add_comm,Nat.add_left_comm] using h
+
+theorem solve2_correct
+  (pos : Pos)
+  (rs  : List Rotation) :
+  -----------------------
+  solve2 pos 0 rs = passwordSpec2 pos rs
+:= by
+  unfold passwordSpec2
+  simp [loop2_correct]
+
+def day01main2 : IO Unit := do
+  let stdin ← IO.getStdin
+  let input ← stdin.readToEnd
+  match parseInput input with
+  | .ok rs =>
+      let ans := solve2 50 0 rs
+      IO.println ans
+  | .error msg =>
+      IO.eprintln s!"Error parsing input: {msg}"
