@@ -1,5 +1,6 @@
 import Batteries.Data.List.Lemmas
 import Mathlib
+import Init.Data.Fin.Basic
 
 -- part 1
 
@@ -12,75 +13,20 @@ structure Rotation where
   steps : Nat
 
 /- Dial positions are number 0..99 (this invariant will be enforced) -/
-abbrev Pos := Nat
+abbrev Pos := Fin 100
 
 def stepSpec (p : Pos) (r : Rotation) : Pos :=
-  let n := r.steps
+  let n : Nat := r.steps
+  let m : Pos := Fin.ofNat 100 n
   match r.dir with
-  | .R => (p + n) % 100
-  | .L => (p + 100 - (n % 100)) % 100
-
-theorem stepSpec_range
-  (p : Pos)
-  (r : Rotation) :
-  ----------------
-  stepSpec p r < 100
-:= by
-  unfold stepSpec
-  cases r.dir with
-  | R =>
-    simp
-    have h : 0 < 100 := by decide
-    exact Nat.mod_lt _ h
-  | L =>
-    simp
-    have h : 0 < 100 := by decide
-    exact Nat.mod_lt _ h
-
-theorem stepSpec_right
-  (p : Pos)
-  (n : Nat) :
-  -----------
-  stepSpec p ⟨Dir.R, n⟩ = (p + n) % 100
-:= by
-  unfold stepSpec
-  simp
-
-theorem stepSpec_left
-  (p : Pos)
-  (n : Nat) :
-  -----------
-  stepSpec p ⟨Dir.L, n⟩  = (p + 100 - (n % 100)) % 100
-:= by
-  unfold stepSpec
-  simp
+  | .R => p + m
+  | .L => p - m
 
 def runSpec : List Rotation -> Pos -> List Pos
   | []     , _ => []
   | r :: rs, p =>
       let p' := stepSpec p r
       p' :: runSpec rs p'
-
-/-- Every position in the run stays in 0..99. -/
-theorem runSpec_range
-  (rs : List Rotation)
-  (p  : Pos) :
-  ------------
-  ∀ q ∈ runSpec rs p, q < 100
-:= by
-  induction rs generalizing p with
-  | nil =>
-    intros q h
-    simp [runSpec] at h
-  | cons r rs ih =>
-    intros q h
-    simp [runSpec] at h
-    cases h with
-    | inl hq =>
-      subst hq
-      exact stepSpec_range p r
-    | inr hmem =>
-      exact ih (stepSpec p r) q hmem
 
 def passwordSpec (pos : Pos) (rs : List Rotation) : Nat :=
   (runSpec rs pos).count 0
@@ -90,13 +36,14 @@ def exampleRotations : List Rotation :=
   [ ⟨Dir.L, 68⟩,
     ⟨Dir.L, 30⟩,
     ⟨Dir.R, 48⟩,
-    ⟨Dir.L, 5⟩,
+    ⟨Dir.L, 5 ⟩,
     ⟨Dir.R, 60⟩,
     ⟨Dir.L, 55⟩,
-    ⟨Dir.L, 1⟩,
+    ⟨Dir.L, 1 ⟩,
     ⟨Dir.L, 99⟩,
     ⟨Dir.R, 14⟩,
-    ⟨Dir.L, 82⟩ ]
+    ⟨Dir.L, 82⟩
+  ]
 
 /-- The example in the text: password should be 3. -/
 theorem example_password :
@@ -115,8 +62,9 @@ def solve (pos : Pos) (cnt : Nat) (rs : List Rotation) : Nat :=
     pure cnt
 
 theorem loop_correct
-  (rs : List Rotation)
-  (pos cnt : Nat) :
+  (rs  : List Rotation)
+  (pos : Pos)
+  (cnt : Nat) :
   -----------------
   (solve pos cnt rs)
   =
@@ -169,7 +117,7 @@ def parseRotation (line : String) : Except String Rotation := do
       let numStr := String.ofList cs
       match numStr.toNat? with
       | some n => .ok ⟨dir, n⟩
-      | none   => .error s!"Invalid number in rotation line: {numStr} {line.length}"
+      | none      => .error s!"Invalid number in rotation line: {numStr}"
 
 def parseInput (s : String) : Except String (List Rotation) := do
   let lines := s.splitToList (· = '\n')
@@ -190,55 +138,14 @@ def day01main1 : IO Unit := do
 
 def step1 (p : Pos) (d : Dir) : Pos :=
   match d with
-  | .R => (p + 1) % 100
-  | .L => (p + 100 - 1) % 100   -- i.e. (p - 1) mod 100
-
-theorem step1_range
-  (p : Pos)
-  (d : Dir) :
-  -----------
-  step1 p d < 100 :=
-by
-  unfold step1
-  cases d with
-  | R =>
-      simp
-      have h : 0 < 100 := by decide
-      exact Nat.mod_lt _ h
-  | L =>
-      simp
-      have h : 0 < 100 := by decide
-      exact Nat.mod_lt _ h
+  | .R => p + 1
+  | .L => p + 99
 
 def clicksSpec : Pos → Rotation → List Pos
-  | _pos, ⟨_d, 0⟩   => []
+  | _pos, ⟨_d, 0⟩ => []
   | pos , ⟨d , n+1⟩ =>
       let pos₁ := step1 pos d
       pos₁ :: clicksSpec pos₁ ⟨d, n⟩
-
-theorem clicksSpec_range
-  (pos : Pos)
-  (r   : Rotation) :
-  ------------------
-  ∀ q ∈ clicksSpec pos r, q < 100
-:= by
-  cases r with
-  | mk d n =>
-      induction n generalizing pos with
-      | zero =>
-          intro q h
-          simp [clicksSpec] at h
-          -- sorry
-      | succ n ih =>
-          intro q h
-          simp [clicksSpec] at h
-          cases h with
-          | inl hq =>
-              subst hq
-              exact step1_range pos d
-          | inr hmem =>
-              -- tail case: recurse from pos₁
-              exact ih _ _ hmem
 
 theorem clicksSpec_length
   (pos : Pos)
@@ -247,27 +154,9 @@ theorem clicksSpec_length
   (clicksSpec pos r).length = r.steps := by
   cases r with
   | mk d n =>
-      induction n generalizing pos with
-      | zero =>
-          simp [clicksSpec]
-      | succ n ih =>
-          simp [clicksSpec, ih, Nat.succ_eq_add_one]
-
-/--
-If a rotation has at least one step, the final position in the per-click trace
-coincides with the `stepSpec` final position.
--/
-theorem clicksSpec_last_eq_stepSpec
-  (pos    : Pos)
-  (r      : Rotation)
-  (hsteps : r.steps ≠ 0) :
-  ------------------------
-  (clicksSpec pos r).getLast? = some (stepSpec pos r) :=
-by
-  -- Sketch: do induction on r.steps, tracking pos;
-  -- you can fill this in later if you want this fact explicitly.
-  -- For now, we can leave this lemma as a `sorry` if not needed immediately.
-  sorry
+    induction n generalizing pos with
+    | zero      => simp [clicksSpec]
+    | succ n ih => simp [clicksSpec, ih]
 
 def runSpec2 : List Rotation → Pos → List Pos
   | [],      _   => []
@@ -276,26 +165,6 @@ def runSpec2 : List Rotation → Pos → List Pos
       let pos'   := stepSpec pos r
       clicks ++ runSpec2 rs pos'
 
-theorem runSpec2_range
-  (rs : List Rotation)
-  (pos : Pos) :
-  -------------
-  ∀ q ∈ runSpec2 rs pos, q < 100 := by
-  induction rs generalizing pos with
-  | nil =>
-      intro q h
-      simp [runSpec2] at h
-  | cons r rs ih =>
-      intro q h
-      simp [runSpec2] at h
-      cases h with
-      | inl hInClicks =>
-          -- from this rotation's clicks
-          exact clicksSpec_range pos r q hInClicks
-      | inr hInTail =>
-          -- from later rotations; recurse from pos'
-          exact ih (stepSpec pos r) q hInTail
-
 def passwordSpec2 (pos : Pos) (rs : List Rotation) : Nat :=
   (runSpec2 rs pos).count 0
 
@@ -303,42 +172,37 @@ def passwordSpec2 (pos : Pos) (rs : List Rotation) : Nat :=
 
 #eval (clicksSpec 50 ⟨Dir.R, 1000⟩).count 0
 
-/-
-TODO
-Or more generally, you can prove a formula for:
-(clicksSpec p ⟨Dir.R, n⟩).count 0
-
-as something like:
-0 if we never wrap around,
-otherwise 1 + (n - firstHit) / 100, where firstHit is how many steps to reach 0 the first time.
-That’s a fun next theorem if you want to get into arithmetical reasoning and modular arithmetic proofs.
--/
-
-def firstRight (pos : Pos) : Nat :=
-  if pos = 0 then 100 else 100 - pos
-
-def firstLeft (pos : Pos) : Nat :=
-  if pos = 0 then 100 else pos
-
-def zerosInRot (pos : Pos) (r : Rotation) : Nat :=
-  let n := r.steps
-  match r.dir with
-  | Dir.R =>
-      let first := firstRight pos
-      if n < first
-        then 0
-        else 1 + (n - first) / 100
-  | Dir.L =>
-      let first := firstLeft pos
-      if n < first
-        then 0
-        else 1 + (n - first) / 100
-
 def zerosInRotRec : Pos -> Rotation -> Nat
   | pos, ⟨d, 0⟩   => 0
   | pos, ⟨d, n+1⟩ =>
       let pos₁ := step1 pos d
       (if pos₁ = 0 then 1 else 0) + zerosInRotRec pos₁ ⟨d, n⟩
+
+/-- distance (in steps) going right until the *next* time we hit 0 -/
+def distRight (p : Pos) : Nat :=
+  if p.val = 0
+    then 100
+    else 100 - p.val
+
+/-- distance (in steps) going left until the *next* time we hit 0 -/
+def distLeft (p : Pos) : Nat :=
+  if p.val = 0
+    then 100
+    else p.val
+
+/-- distance (in steps) until the next time we hit 0 following `d` -/
+def firstZeroSteps (d : Dir) (p : Pos) : Nat :=
+  match d with
+  | Dir.R => distRight p
+  | Dir.L => distLeft p
+
+/-- how many times we land exactly on 0 in `r.steps` moves from `pos` -/
+def zerosInRot (pos : Pos) (r : Rotation) : Nat :=
+  let first := firstZeroSteps r.dir pos
+  let n     := r.steps
+  if n < first
+    then 0
+    else 1 + (n - first) / 100
 
 theorem zeroesInRotRec_spec
   (pos : Pos)
@@ -360,13 +224,86 @@ theorem zeroesInRotRec_spec
         , Nat.add_comm
         ]
 
+/-
 theorem zerosInRot_eq_rec
   (pos : Pos)
   (r : Rotation) :
   ----------------
   zerosInRot pos r = zerosInRotRec pos r
 := by
+  cases r with | mk d n =>
   sorry
+-/
+
+theorem zerosInRot_spec
+  (pos : Pos)
+  (r : Rotation) :
+  ----------------
+  zerosInRot pos r = (clicksSpec pos r).count 0
+:= by
+  cases r with | mk d n =>
+  induction n generalizing pos d with
+  | zero =>
+      simp [zerosInRot,clicksSpec,firstZeroSteps]
+      by_cases h1 : pos.val = 0
+      · have hpos : pos = (0 : Pos) := by
+          apply Fin.eq_of_val_eq
+          simpa using h1
+        cases d with
+        | L => simp [distLeft, hpos]
+        | R => simp [distRight, hpos]
+      · cases d with
+        | L =>
+          simp [distLeft]
+          intros h2
+          by_cases h3 : pos = 0
+          · simp [h3] at h1
+          · have h4 : (↑pos : Nat) = 0 := by simp [h3] at h2
+            exact h1 h4
+        | R =>
+          simp [distRight]
+          intros h2
+          by_cases h3 : pos = 0
+          · simp [h3] at h1
+          · have h4 : 100 - (↑pos : Nat) = 0 := by simpa [h3] using h2
+            have h5 : 100 <= (↑pos : Nat) := by exact (Nat.sub_eq_zero_iff_le.mp h4)
+            have h6 : (↑pos : Nat) < 100 := pos.isLt
+            exact (Nat.not_le_of_gt h6) h5
+  | succ n ih =>
+    let rn   : Rotation := { dir := d, steps := n}
+    let rn1  : Rotation := { dir := d, steps := n + 1 }
+    let pos1 : Pos      := step1 pos d
+    simp [zerosInRot, clicksSpec, List.count_cons] at ih ⊢
+    have ih' := (ih pos1 d).symm
+    have h1 := congrArg (fun x => x + if pos1 = 0 then 1 else 0) ih'
+    simp [pos1,h1] at ⊢
+    by_cases h2 : pos1 = 0
+    · cases d <;> cases pos using Fin.cases
+      · have pos1_ne_zero : pos1 ≠ (0 : Pos) := by
+          simp [pos1,step1]
+        exact (pos1_ne_zero h2).elim
+      · rename_i i
+        have h3 : step1 i.succ Dir.L = 0 := by
+          simpa [pos1] using h2
+        have h4 : (i.succ : Pos) ≠ 0 :=
+          Fin.succ_ne_zero _
+        have h5 : ((i.succ : Pos).val ≠ 0) := by
+          intro h
+          apply h4
+          apply Fin.eq_of_val_eq
+          simpa using h
+        have h6 :
+          (if n + 1 < firstZeroSteps Dir.L i.succ then 0 else 1 + (n + 1 - firstZeroSteps Dir.L i.succ) / 100)
+          =
+          (if n < firstZeroSteps Dir.L (step1 i.succ Dir.L) then 0 else 1 + (n - firstZeroSteps Dir.L (step1 i.succ Dir.L)) / 100) +
+          (if step1 i.succ Dir.L = 0 then 1 else 0) := by
+            simp [firstZeroSteps, distLeft, h2, h4, h3] at ⊢
+            sorry
+        simp [h6]
+      · sorry
+      · rename_i i
+        sorry
+    · sorry
 
 #eval zerosInRot 50 ⟨Dir.R, 1000⟩
 
@@ -379,17 +316,27 @@ def solve2 (pos : Pos) (cnt : Nat) (rs : List Rotation) : Nat :=
       s := (s.fst + c,pos')
     pure s.fst
 
-theorem zerosInRot_spec
+theorem zerosInRotRec_spec
   (pos : Pos)
   (r : Rotation) :
   ----------------
-  zerosInRot pos r = (clicksSpec pos r).count 0
+  zerosInRotRec pos r = (clicksSpec pos r).count 0
 := by
-  sorry
+  cases r with | mk d n =>
+  induction n generalizing pos with
+  | zero => simp [zerosInRotRec, clicksSpec]
+  | succ n ih => simp
+    [ zerosInRotRec
+    , clicksSpec
+    , List.count_cons
+    , Nat.add_comm
+    , ih (step1 pos d)
+    ]
 
 theorem loop2_correct
   (rs : List Rotation)
-  (pos cnt : Nat) :
+  (pos : Pos)
+  (cnt : Nat) :
   -----------------
   solve2 pos cnt rs
   =
