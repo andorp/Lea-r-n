@@ -246,3 +246,104 @@ def day03main1 : IO Unit := do
   let banks <- parseInput input
   let ans := solvePart1 banks
   IO.println ans
+
+structure BankK (k : Nat) where
+  digits : List Digit
+  hlen   : k ≤ digits.length
+
+abbrev InputK (k : Nat) := List (BankK k)
+
+def argmax2 (xs : List Digit) (nonEmpty : 1 ≤ xs.length) : Fin xs.length :=
+  have hlen : 0 < xs.length := by simpa
+  let init : Fin xs.length := ⟨0, hlen⟩
+  let step (best i : Fin xs.length) : Fin xs.length :=
+    if xs.get best < xs.get i then i else best
+  (List.finRange xs.length).foldl step init
+
+/- -
+Pick a lexicographically maximum subsequence of length `k` from `xs`
+(order preserved). Requires `k ≤ xs.length`.
+- -/
+def pickMaxSubseq (xs : List Digit) (k : Nat) (hk : k ≤ xs.length) : List Digit :=
+  match k with
+  | 0 => []
+  | k+1 =>
+    -- windowLen = n - (k+1) + 1 = n - k
+    let n := xs.length
+    let windowLen : Nat := n - k
+    have hwin_pos : 1 ≤ (xs.take windowLen).length := by
+      have h1 : 1 ≤ windowLen :=
+        hk |> Nat.lt_of_succ_le
+           |> Nat.sub_pos_of_lt
+           |> Nat.succ_le_of_lt
+           |> Nat.succ_le_iff.mp
+      have hx : 1 ≤ xs.length :=
+        Nat.le_trans (Nat.succ_le_succ (Nat.zero_le k)) hk
+      simpa [List.length_take] using And.intro h1 hx
+    let window := xs.take windowLen
+    let i : Fin window.length := argmax2 window hwin_pos
+    let d : Digit := window.get i
+
+    let dropCount : Nat := i.1 + 1
+    let rest := xs.drop dropCount
+    have hk : k ≤ rest.length := by
+      have hk2 : k ≤ n - dropCount := by
+        -- Step 1: bound dropCount by windowLen = n - k
+        have hdrop_le : dropCount ≤ windowLen := by
+          -- i.isLt : i.1 < window.length
+          have hi_lt : (i.1 : Nat) < windowLen := by
+            -- window.length = min windowLen n, so window.length ≤ windowLen
+            have hlen_le : window.length ≤ windowLen := by
+              -- window = take windowLen xs
+              -- length_take: length (take m xs) = min m (length xs)
+              -- so min windowLen n ≤ windowLen
+              simpa [window, List.length_take] using Nat.min_le_left windowLen n
+            -- i.1 < window.length ≤ windowLen
+            exact lt_of_lt_of_le i.isLt hlen_le
+          -- convert i.1 < windowLen to i.1+1 ≤ windowLen
+          exact Nat.succ_le_iff.mp hi_lt
+        -- Step 2: turn dropCount ≤ n-k into k ≤ n-dropCount
+        -- (this is just arithmetic)
+        -- windowLen is definitional equal to n - k
+        -- so rewrite and let omega finish
+        -- (omega knows: dropCount ≤ n-k  ->  k ≤ n-dropCount)
+        have : dropCount ≤ n - k := by
+          simpa [windowLen] using hdrop_le
+        omega
+      -- rest = xs.drop dropCount
+      -- length_drop : rest.length = n - dropCount
+      simpa [rest, List.length_drop, n] using hk2
+    d :: pickMaxSubseq rest k hk
+
+/-- Convert a digit list to its base-10 numeric value. -/
+def digitsValue (ds : List Digit) : Nat :=
+  ds.foldl (fun acc d => acc * 10 + (d : Nat)) 0
+
+def bankMaxAlg12 (b : BankK 12) : Nat :=
+  digitsValue (pickMaxSubseq b.digits 12 b.hlen)
+
+/-- Total output for Part 2. -/
+def solvePart2 (input : InputK 12) : Nat :=
+  (input.map bankMaxAlg12).sum
+
+def parseBankK (k : Nat) (s : String) : IO (BankK k) := do
+  -- IO.println s!"parseBank {s}"
+  let cs := s.toList
+  let ds <- cs.mapM parseDigit
+  -- IO.println s!"Digits {ds}"
+  if h : k <= ds.length
+    then .ok (BankK.mk ds h)
+    else .error s!"Minimum 2 batteries required.{ds}"
+
+def parseInputK (k : Nat) (s : String) : IO (List (BankK k)) := do
+  let lines := s.splitToList (· = '\n')
+  let nonempty := lines.filter (fun l => !l.trim.isEmpty)
+  nonempty.mapM (parseBankK k)
+
+def day03main2 : IO Unit := do
+  let stdin <- IO.getStdin
+  let input <- stdin.readToEnd
+  -- IO.println input
+  let banks <- parseInputK 12 input
+  let ans := solvePart2 banks
+  IO.println ans
