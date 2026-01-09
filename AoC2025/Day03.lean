@@ -17,7 +17,7 @@ abbrev Input := List Bank
 structure Choice (b : Bank) where
   i   : Fin b.digits.length
   j   : Fin b.digits.length
-  hij : i < j
+  hij : i.val < j.val
 
 abbrev Joltage := Nat
 
@@ -33,32 +33,85 @@ structure Options (b : Bank) t where
   options  : List t
   nonEmpty : options ≠ []
 
--- /-- All possible (i, j) with i < j in a given bank, as a list. -/
--- def allChoices (b : Bank) : Options b (Choice b) := sorry  -- to be defined later
+/-- All possible (i, j) with i < j in a given bank, as a list. -/
+def allChoices (b : Bank) : Options b (Choice b) := sorry  -- to be defined later
 
--- /-- Spec: The set of all possible output joltages from this bank. -/
--- def bankValues (b : Bank) : Options b Joltage := sorry
---   -- (allChoices b).map (choiceValue b)
+/-- Spec: The set of all possible output joltages from this bank. -/
+def bankValues (b : Bank) : Options b Joltage :=
+  match allChoices b with
+  | Options.mk os ne =>
+    Options.mk
+      (os.map choiceValue)
+      (by simpa [List.map_eq_nil_iff])
 
--- /-- Spec: maximum joltage for a bank (there is at least one choice). -/
--- def bankMax (b : Bank) : Joltage :=
---   match bankValues b with
---   | Options.mk options nonEmpty =>
---     match options with
---     | []        => by simp at (nonEmpty : [] ≠ [])
---     | (v :: vs) => vs.foldl Nat.max v
+/-- Spec: maximum joltage for a bank (there is at least one choice). -/
+def bankMax (b : Bank) : Joltage :=
+  match bankValues b with
+  | Options.mk options nonEmpty =>
+    match options with
+    | []        => by simp at (nonEmpty : [] ≠ [])
+    | (v :: vs) => vs.foldl Nat.max v
 
--- /-- Final answer: total output joltage over all banks. -/
--- def totalOutput (input : Input) : Joltage :=
---   (input.map bankMax).sum
+/-- Final answer: total output joltage over all banks. -/
+def totalOutput (input : Input) : Joltage :=
+  (input.map bankMax).sum
 
--- /-- Lexicographic characterization of two-digit numbers built with `pairValue`. -/
--- theorem pairValue_lt_iff
---     {a b c d : Digit} :
---     pairValue a b < pairValue c d
---       ↔ (a < c) ∨ (a = c ∧ b < d) := by
---   -- proof later
---   sorry
+/-- Lexicographic characterization of two-digit numbers built with `pairValue`. -/
+theorem pairValue_lt_iff
+  {a b c d : Digit} :
+  -------------------
+  pairValue a b < pairValue c d
+  ↔ (a < c) ∨ (a = c ∧ b < d)
+:= by
+  constructor <;> intros h1
+  · have h2 := Nat.lt_trichotomy a c
+    cases h2 with
+    | inl h3 => left; assumption
+    | inr h3 => cases h3 with
+      | inl h4 =>
+        right
+        simp [pairValue,h4] at h1
+        refine And.intro (Fin.ext h4) h1
+      | inr h4 =>
+        exfalso
+        simp [pairValue] at h1
+        -- 10*c + d < 10*(c+1)  (because d < 10)
+        have hcd_lt : 10 * (c : Nat) + (d : Nat) < 10 * ((c : Nat) + 1) := by
+          -- uses d.isLt : (d:Nat) < 10
+          omega
+        -- c+1 ≤ a
+        have hca : (c : Nat) + 1 ≤ (a : Nat) := Nat.succ_le_of_lt h4
+        -- so 10*(c+1) ≤ 10*a
+        have hmul : 10 * ((c : Nat) + 1) ≤ 10 * (a : Nat) :=
+          Nat.mul_le_mul_left 10 hca
+        -- hence 10*c + d < 10*a
+        have hcd_lt_10a : 10 * (c : Nat) + (d : Nat) < 10 * (a : Nat) :=
+          lt_of_lt_of_le hcd_lt hmul
+        -- and 10*a ≤ 10*a + b
+        have h10a_le : 10 * (a : Nat) ≤ 10 * (a : Nat) + (b : Nat) :=
+          Nat.le_add_right _ _
+        have h2 : 10 * (c : Nat) + (d : Nat) < 10 * (a : Nat) + (b : Nat) :=
+          lt_of_lt_of_le hcd_lt_10a h10a_le
+        exact lt_asymm h1 h2
+  · cases h1 with
+    | inl h2 =>
+      simp [pairValue]
+      have hb : (b : Nat) < 10 := b.isLt
+      have : 10 * (a : Nat) + (b : Nat) < 10 * (c : Nat) := by
+        -- since a < c, we have a+1 ≤ c, hence 10*(a+1) ≤ 10*c
+        have hac : (a : Nat) + 1 ≤ (c : Nat) := Nat.succ_le_of_lt (show (a : Nat) < (c : Nat) from h2)
+        have hmul : 10 * ((a : Nat) + 1) ≤ 10 * (c : Nat) := Nat.mul_le_mul_left 10 hac
+        -- and b < 10 implies 10*a + b < 10*a + 10 = 10*(a+1)
+        have hstep : 10 * (a : Nat) + (b : Nat) < 10 * ((a : Nat) + 1) := by
+          omega
+        exact lt_of_lt_of_le hstep hmul
+      -- now add d (nonnegative) to the right: 10*c < 10*c + d
+      have hright : 10 * (c : Nat) ≤ 10 * (c : Nat) + (d : Nat) := Nat.le_add_right _ _
+      exact lt_of_lt_of_le this hright
+    | inr h2 =>
+      simp [pairValue]
+      have ⟨h3,h4⟩ := h2
+      simp [h3] <;> assumption
 
 -- theorem pairValue_le_iff
 --     {a b c d : Digit} :
@@ -170,31 +223,30 @@ theorem bank_index_sub_add_cancel
   have h1 : 1 ≤ b.digits.length := by omega
   rw [Nat.sub_add_cancel h1]
 
-theorem idxMaxAfter_correct
+theorem idxMaxAfter_is_after_index
   (b : Bank)
   (i : Fin (b.digits.length - 1)) :
   ---------------------------------
-  Fin.castLE
-    (by rw [bank_index_sub_add_cancel b])
-    (Fin.castSucc i) < idxMaxAfter b i:=
-by
-  sorry
+  i.val < (idxMaxAfter b i).val
+:= by
+  simpa [idxMaxAfter, bank_index_sub_add_cancel,Fin.lt_def]
+  using (by omega)
 
 /-- Algorithmic version: max two-digit value from a bank. -/
 def bankMaxAlg (b : Bank) : Nat :=
   let xs  := b.digits
   let i   := idxMaxInit b
   let j   := idxMaxAfter b i
-  let k   := Fin.castSucc i
-  -- dbg_trace s!"Bank i:{i} j:{j} k:{k}"
-  have ct  := b.hlen
-  have i' : Fin b.digits.length := by
-    have k := Fin.castSucc i
-    have h1 : 1 ≤ b.digits.length := by omega
-    rw [Nat.sub_add_cancel h1] at k
-    exact k
-  -- dbg_trace s!"Bank i:{i} i':{i'} j:{j} xs[{i'}]{(xs.get i')} xs[{j}]{(xs.get j)}"
-  let c : Choice b := Choice.mk i' j sorry
+  -- define i' exactly as the “i+1 in length len” cast
+  let i' : Fin b.digits.length :=
+    Fin.castLE (by rw [bank_index_sub_add_cancel b]) (Fin.castSucc i)
+  have hij : i'.val < j.val := by
+    -- `idxMaxAfter_is_after_index` already proves `i' < j` (as Fin),
+    -- and `Fin.lt` is definitionaly `.val < .val`, so `simpa` will turn it into `.val < .val`.
+    have ha := idxMaxAfter_is_after_index b i
+    -- rewrite `j` and `i'` and convert `<` on Fin to `.val < .val`
+    simpa [i', j, Fin.lt_def] using ha
+  let c : Choice b := Choice.mk i' j hij
   choiceValue c
 
 -- /-- The algorithm agrees with the spec. -/
@@ -253,13 +305,6 @@ structure BankK (k : Nat) where
 
 abbrev InputK (k : Nat) := List (BankK k)
 
-def argmax2 (xs : List Digit) (nonEmpty : 1 ≤ xs.length) : Fin xs.length :=
-  have hlen : 0 < xs.length := by simpa
-  let init : Fin xs.length := ⟨0, hlen⟩
-  let step (best i : Fin xs.length) : Fin xs.length :=
-    if xs.get best < xs.get i then i else best
-  (List.finRange xs.length).foldl step init
-
 /- -
 Pick a lexicographically maximum subsequence of length `k` from `xs`
 (order preserved). Requires `k ≤ xs.length`.
@@ -281,7 +326,7 @@ def pickMaxSubseq (xs : List Digit) (k : Nat) (hk : k ≤ xs.length) : List Digi
         Nat.le_trans (Nat.succ_le_succ (Nat.zero_le k)) hk
       simpa [List.length_take] using And.intro h1 hx
     let window := xs.take windowLen
-    let i : Fin window.length := argmax2 window hwin_pos
+    let i : Fin window.length := argmax window hwin_pos
     let d : Digit := window.get i
 
     let dropCount : Nat := i.1 + 1
@@ -347,3 +392,5 @@ def day03main2 : IO Unit := do
   let banks <- parseInputK 12 input
   let ans := solvePart2 banks
   IO.println ans
+
+def nextYear : Int := 2026

@@ -7,8 +7,8 @@ defaultTargets = ["aoc"]
 pp.unicode.fun = true # pretty-prints `fun a ↦ b`
 relaxedAutoImplicit = false
 weak.linter.mathlibStandardSet = true
-# linter.flexible = false
-# linter.style.commandStart = false
+linter.flexible = false
+linter.style.commandStart = false
 maxSynthPendingDepth = 3
 
 [[require]]
